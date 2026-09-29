@@ -3452,6 +3452,14 @@ body{
     { label: "B", name: "브러시 툴", combos: ["b"], difficulty: "easy" },
     { label: "N", name: "연필 툴", combos: ["n"], difficulty: "easy" },
     { label: "스페이스바", name: "화면 이동", combos: ["space"], difficulty: "easy" },
+    { label: "←", name: "왼쪽 방향키", combos: ["left"], difficulty: "easy" },
+    { label: "→", name: "오른쪽 방향키", combos: ["right"], difficulty: "easy" },
+    { label: "↑", name: "위쪽 방향키", combos: ["up"], difficulty: "easy" },
+    { label: "↓", name: "아래쪽 방향키", combos: ["down"], difficulty: "easy" },
+    { label: "Backspace", name: "지우기", combos: ["backspace"], difficulty: "easy" },
+    { label: "Shift", name: "쉬프트 키", combos: ["shift"], difficulty: "easy" },
+    { label: "Ctrl/Cmd", name: "컨트롤/커맨드 키", combos: ["ctrl", "cmd"], difficulty: "easy" },
+    { label: "Ctrl/Cmd + Shift", name: "복합 보조키", combos: ["ctrl+shift", "cmd+shift"], difficulty: "normal" },
     { label: "U", name: "도형 툴", combos: ["u"], difficulty: "easy" },
     { label: "T", name: "텍스트 툴", combos: ["t"], difficulty: "easy" },
     { label: "S", name: "쉐이프 빌더 툴", combos: ["s"], difficulty: "normal" },
@@ -3500,6 +3508,14 @@ body{
     "B · 브러시 툴": "손으로 그리듯 자유롭게 선을 그릴 때 사용하는 툴이에요.",
     "N · 연필 툴": "손그림처럼 자유로운 벡터 선을 그릴 때 사용하는 툴이에요.",
     "스페이스바 · 화면 이동": "캔버스를 잠시 잡고 움직이며 화면 위치를 조절할 때 사용해요.",
+    "← · 왼쪽 방향키": "선택한 오브젝트나 커서를 왼쪽 방향으로 이동할 때 눌러요.",
+    "→ · 오른쪽 방향키": "선택한 오브젝트나 커서를 오른쪽 방향으로 이동할 때 눌러요.",
+    "↑ · 위쪽 방향키": "선택한 오브젝트나 커서를 위쪽 방향으로 이동할 때 눌러요.",
+    "↓ · 아래쪽 방향키": "선택한 오브젝트나 커서를 아래쪽 방향으로 이동할 때 눌러요.",
+    "Backspace · 지우기": "텍스트를 입력할 때 앞의 글자를 지우거나 선택한 내용을 삭제할 때 사용하는 키예요.",
+    "Shift · 쉬프트 키": "다른 키와 함께 눌러 보조 기능이나 조합 단축키를 사용할 때 사용하는 키예요.",
+    "Ctrl/Cmd · 컨트롤/커맨드 키": "다른 키와 함께 여러 편집 단축키를 실행할 때 사용하는 기본 보조키예요.",
+    "Ctrl/Cmd + Shift · 복합 보조키": "Ctrl 또는 Cmd와 Shift를 동시에 누르는 복합 보조키 조합이에요.",
     "U · 도형 툴": "사각형, 원, 별 같은 기본 도형을 빠르게 만들 때 사용하는 툴이에요.",
     "T · 텍스트 툴": "글자를 입력하거나 글상자를 만들 때 사용하는 툴이에요.",
     "S · 쉐이프 빌더 툴": "겹쳐진 도형을 합치거나 나누어 새로운 모양을 만들 때 사용하는 툴이에요.",
@@ -3580,6 +3596,8 @@ body{
   let audioCtx = null;
   let levelUpAudio = null;
   let gameOverAudio = null;
+  let pendingModifierCombo = "";
+
   let comboAudio = null;
   let greatAudio = null;
   let excellentAudio = null;
@@ -4021,7 +4039,8 @@ body{
           state.keyboardLockActive = true;
         }
       } catch (err) {
-        state.keyboardLockActive = false;
+        pendingModifierCombo = "";
+    state.keyboardLockActive = false;
       }
     };
 
@@ -4047,6 +4066,7 @@ body{
     try {
       if (navigator.keyboard && typeof navigator.keyboard.unlock === "function") navigator.keyboard.unlock();
     } catch (err) {}
+    pendingModifierCombo = "";
     state.keyboardLockActive = false;
   }
 
@@ -4353,7 +4373,17 @@ body{
 
   function normalizeKeyEvent(e) {
     const raw = e.key;
-    if (raw === "Control" || raw === "Meta" || raw === "Shift" || raw === "Alt" || raw === "CapsLock" || raw === "Tab") return "";
+    if (raw === "Alt" || raw === "CapsLock" || raw === "Tab") return "";
+
+    // Modifier-only cards are supported. Keep a canonical order so
+    // Ctrl/Cmd + Shift also remains compatible with longer shortcuts.
+    if (raw === "Control") return e.shiftKey ? "ctrl+shift" : "ctrl";
+    if (raw === "Meta") return e.shiftKey ? "cmd+shift" : "cmd";
+    if (raw === "Shift") {
+      if (e.ctrlKey) return "ctrl+shift";
+      if (e.metaKey) return "cmd+shift";
+      return "shift";
+    }
 
     let key = "";
     if (/^Key[A-Z]$/.test(e.code)) key = e.code.replace("Key", "").toLowerCase();
@@ -4389,6 +4419,7 @@ body{
   }
 
   function isBrowserShortcutCombo(combo) {
+    if (["ctrl", "cmd", "shift", "ctrl+shift", "cmd+shift"].includes(combo)) return false;
     return combo.indexOf("ctrl+") === 0 || combo.indexOf("cmd+") === 0 || combo.indexOf("ctrl+shift+") === 0 || combo.indexOf("cmd+shift+") === 0;
   }
 
@@ -4436,6 +4467,12 @@ body{
       if (part === "ctrl") return "ctrl";
       if (part === "shift") return "shift";
       if (part === "space") return "스페이스바";
+      if (part === "left") return "←";
+      if (part === "right") return "→";
+      if (part === "up") return "↑";
+      if (part === "down") return "↓";
+      if (part === "backspace") return "Backspace";
+      if (part === "delete") return "Delete";
       if (part.length === 1) return part.toUpperCase();
       if (part === "enter") return "enter";
       return part.toUpperCase();
@@ -5116,11 +5153,8 @@ body{
     updateUI();
   }
 
-  function handleKeyDown(e) {
-    const combo = normalizeKeyEvent(e);
-    if (!shouldCaptureGameKey(e, combo) || !combo) return false;
-    forceBlockEvent(e);
-    if (e.repeat) return false;
+  function judgeGameCombo(combo) {
+    if (!combo) return false;
     unlockAudio();
     lastKeyEl.textContent = displayCombo(combo);
     const matchedCards = state.cards
@@ -5131,12 +5165,46 @@ body{
     return false;
   }
 
-  function handleKeyUp(e) {
+  function isModifierOnlyCombo(combo) {
+    return ["ctrl", "cmd", "shift", "ctrl+shift", "cmd+shift"].includes(combo);
+  }
+
+  function isModifierEvent(e) {
+    return e.key === "Control" || e.key === "Meta" || e.key === "Shift";
+  }
+
+  function handleKeyDown(e) {
     const combo = normalizeKeyEvent(e);
-    if (shouldCaptureGameKey(e, combo)) {
-      forceBlockEvent(e);
+    if (!shouldCaptureGameKey(e, combo) || !combo) return false;
+    forceBlockEvent(e);
+    if (e.repeat) return false;
+
+    // Do not judge modifier-only input on keydown. This lets Ctrl -> Shift -> Z
+    // become Ctrl+Shift+Z instead of incorrectly judging Ctrl first.
+    if (isModifierEvent(e) && isModifierOnlyCombo(combo)) {
+      pendingModifierCombo = combo;
+      lastKeyEl.textContent = displayCombo(combo);
       return false;
     }
+
+    // A real key completed the chord, so discard any pending modifier-only input.
+    pendingModifierCombo = "";
+    return judgeGameCombo(combo);
+  }
+
+  function handleKeyUp(e) {
+    const combo = normalizeKeyEvent(e);
+    if (!shouldCaptureGameKey(e, combo) || !combo) return false;
+    forceBlockEvent(e);
+
+    // If the player releases modifiers without adding another key,
+    // judge the standalone Shift / Ctrl(Cmd) / Ctrl(Cmd)+Shift card now.
+    if (isModifierEvent(e) && pendingModifierCombo) {
+      const pending = pendingModifierCombo;
+      pendingModifierCombo = "";
+      return judgeGameCombo(pending);
+    }
+    return false;
   }
 
   function handleBeforeUnload(e) {
@@ -5251,6 +5319,7 @@ body{
     state.bossRound = null;
     state.completed = false;
     state.wrongFxCooldownUntil = 0;
+    pendingModifierCombo = "";
     state.keyboardLockActive = false;
     state.keyboardLockTried = false;
     state.wrongAudioTimers = [];
@@ -5319,6 +5388,7 @@ body{
     state.bossRound = null;
     state.completed = false;
     state.wrongFxCooldownUntil = 0;
+    pendingModifierCombo = "";
     state.keyboardLockActive = false;
     state.keyboardLockTried = false;
     state.wrongAudioTimers = [];
